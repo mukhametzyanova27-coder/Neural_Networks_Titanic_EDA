@@ -3,76 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Titanic EDA Tool</title>
+    <title>Titanic EDA Tool - Advanced</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 1200px; margin: 0 auto; background: #f4f4f9; }
-        section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h2 { border-bottom: 2px solid #333; padding-bottom: 10px; }
-        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f2f2f2; }
-        .chart-container { position: relative; height: 300px; width: 100%; margin-bottom: 30px; }
-        .note { font-size: 0.85em; color: #666; font-style: italic; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; padding: 20px; max-width: 1200px; margin: 0 auto; background: #f0f2f5; }
+        section { background: white; padding: 25px; margin-bottom: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h2 { border-bottom: 3px solid #007bff; padding-bottom: 10px; color: #333; }
+        .controls { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; }
+        .chart-container { background: #fff; padding: 15px; border: 1px solid #eee; border-radius: 8px; height: 350px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f8f9fa; }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>Titanic Interactive EDA</h1>
-        <p class="note">Deployment: Create public GitHub repo, commit index.html/app.js, enable Pages (main/root), test URL.</p>
+        <h1>Titanic Survival Analysis Dashboard</h1>
     </header>
 
     <section id="data-load">
-        <h2>1. Data Load</h2>
+        <h2>1. Upload Data</h2>
         <div class="controls">
-            <div>
-                <label>Train CSV:</label><br>
-                <input type="file" id="train-file" accept=".csv">
-            </div>
-            <div>
-                <label>Test CSV:</label><br>
-                <input type="file" id="test-file" accept=".csv">
-            </div>
-            <button id="run-eda-btn" style="padding: 10px 20px; margin-top: 15px; cursor:pointer;">Run EDA</button>
+            <div><label>Train CSV (with Survived):</label><br><input type="file" id="train-file" accept=".csv"></div>
+            <div><label>Test CSV:</label><br><input type="file" id="test-file" accept=".csv"></div>
+            <button id="run-eda-btn">Analyze Data</button>
         </div>
     </section>
 
-    <section id="overview-section" style="display:none;">
-        <h2>2. Merge & Overview</h2>
-        <div id="overview-stats"></div>
-        <div style="overflow-x:auto;">
-            <h3>Data Preview (First 5 rows)</h3>
-            <table id="preview-table"></table>
+    <section id="viz-section" style="display:none;">
+        <h2>2. Survival Rate Analysis (%)</h2>
+        <p>These charts show the <b>percentage of people who survived</b> in each category (using train data).</p>
+        <div class="chart-grid">
+            <div class="chart-container"><canvas id="sexSurvChart"></canvas></div>
+            <div class="chart-container"><canvas id="pclassSurvChart"></canvas></div>
+            <div class="chart-container"><canvas id="embarkedSurvChart"></canvas></div>
+            <div class="chart-container"><canvas id="ageHist"></canvas></div>
         </div>
-    </section>
-
-    <section id="missing-values" style="display:none;">
-        <h2>3. Missing Values (%)</h2>
-        <div class="chart-container">
-            <canvas id="missingChart"></canvas>
-        </div>
-    </section>
-
-    <section id="stats-summary" style="display:none;">
-        <h2>4. Stats Summary</h2>
-        <div id="numeric-stats"></div>
-        <div id="survival-analysis"></div>
-    </section>
-
-    <section id="visualizations" style="display:none;">
-        <h2>5. Visualizations</h2>
-        <div class="chart-container"><canvas id="sexChart"></canvas></div>
-        <div class="chart-container"><canvas id="pclassChart"></canvas></div>
-        <div class="chart-container"><canvas id="ageHist"></canvas></div>
     </section>
 
     <section id="export-section" style="display:none;">
-        <h2>6. Export</h2>
-        <button id="export-csv">Download Merged CSV</button>
-        <button id="export-json">Download JSON Summary</button>
+        <h2>3. Actions</h2>
+        <button id="export-csv">Download Merged Data</button>
     </section>
 
     <script src="app.js"></script>
