@@ -1,142 +1,97 @@
-// Configuration & Schema
-const SCHEMA = {
-    target: 'Survived',
-    features: ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked'],
-    id: 'PassengerId'
-};
-
 let mergedData = [];
 let charts = {};
 
-// Event Listeners
-document.getElementById('run-eda-btn').addEventListener('click', handleDataProcessing);
+document.getElementById('run-eda-btn').addEventListener('click', handleData);
 document.getElementById('export-csv').addEventListener('click', exportCSV);
-document.getElementById('export-json').addEventListener('click', exportJSON);
 
-async function handleDataProcessing() {
+async function handleData() {
     const trainFile = document.getElementById('train-file').files[0];
     const testFile = document.getElementById('test-file').files[0];
 
-    if (!trainFile || !testFile) {
-        alert("Please select both train.csv and test.csv files.");
-        return;
-    }
+    if (!trainFile || !testFile) return alert("Please upload both files");
 
-    try {
-        const trainRaw = await parseFile(trainFile);
-        const testRaw = await parseFile(testFile);
+    const trainRaw = await parseFile(trainFile);
+    const testRaw = await parseFile(testFile);
 
-        // Add source column and merge
-        const train = trainRaw.data.map(row => ({ ...row, source: 'train' }));
-        const test = testRaw.data.map(row => ({ ...row, source: 'test' }));
-        mergedData = [...train, ...test].filter(row => row[SCHEMA.id]); // Clean empty rows
+    const train = trainRaw.data.map(d => ({ ...d, source: 'train' }));
+    const test = testRaw.data.map(d => ({ ...d, source: 'test' }));
+    mergedData = [...train, ...test].filter(d => d.PassengerId);
 
-        showSections();
-        renderOverview();
-        renderMissingValues();
-        renderStats();
-        renderCharts();
-    } catch (err) {
-        alert("Error processing files: " + err.message);
-    }
+    document.getElementById('viz-section').style.display = 'block';
+    document.getElementById('export-section').style.display = 'block';
+
+    renderSurvivalCharts();
 }
 
 function parseFile(file) {
-    return new Promise((resolve, reject) => {
-        Papa.parse(file, {
-            header: true,
-            dynamicTyping: true,
-            skipEmptyLines: true,
-            complete: resolve,
-            error: reject
-        });
-    });
+    return new Promise(res => Papa.parse(file, { header: true, dynamicTyping: true, complete: res }));
 }
 
-function showSections() {
-    ['overview-section', 'missing-values', 'stats-summary', 'visualizations', 'export-section'].forEach(id => {
-        document.getElementById(id).style.display = 'block';
-    });
-}
-
-function renderOverview() {
-    const div = document.getElementById('overview-stats');
-    div.innerHTML = `<p>Total records: <b>${mergedData.length}</b> (Train: ${mergedData.filter(d=>d.source==='train').length}, Test: ${mergedData.filter(d=>d.source==='test').length})</p>`;
-    
-    const table = document.getElementById('preview-table');
-    const headers = Object.keys(mergedData[0]);
-    table.innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>` + 
-        mergedData.slice(0, 5).map(row => `<tr>${headers.map(h => `<td>${row[h] ?? ''}</td>`).join('')}</tr>`).join('');
-}
-
-function renderMissingValues() {
-    const cols = Object.keys(mergedData[0]);
-    const counts = cols.map(col => {
-        const missing = mergedData.filter(row => row[col] === null || row[col] === undefined || row[col] === "").length;
-        return (missing / mergedData.length * 100).toFixed(2);
-    });
-
-    createChart('missingChart', 'bar', cols, counts, 'Missing Values (%)');
-}
-
-function renderStats() {
+function renderSurvivalCharts() {
     const trainOnly = mergedData.filter(d => d.source === 'train');
-    const survivalBySex = {
-        male: trainOnly.filter(d => d.Sex === 'male' && d.Survived === 1).length / trainOnly.filter(d => d.Sex === 'male').length,
-        female: trainOnly.filter(d => d.Sex === 'female' && d.Survived === 1).length / trainOnly.filter(d => d.Sex === 'female').length
-    };
 
-    document.getElementById('survival-analysis').innerHTML = `
-        <h3>Survival Rate by Gender (Train Data)</h3>
-        <p>Female: ${(survivalBySex.female * 100).toFixed(2)}% | Male: ${(survivalBySex.male * 100).toFixed(2)}%</p>
-        <p><i>Insight: Gender is a key factor for survival.</i></p>
-    `;
-}
+    // 1. Survival by Sex
+    const sexData = calculateRate(trainOnly, 'Sex');
+    createChart('sexSurvChart', 'bar', sexData.labels, sexData.rates, 'Survival Rate by Gender (%)', '#e74c3c');
 
-function renderCharts() {
-    // Sex Distribution
-    const sexCounts = { 
-        male: mergedData.filter(d => d.Sex === 'male').length, 
-        female: mergedData.filter(d => d.Sex === 'female').length 
-    };
-    createChart('sexChart', 'pie', Object.keys(sexCounts), Object.values(sexCounts), 'Gender Distribution');
+    // 2. Survival by Pclass
+    const pclassData = calculateRate(trainOnly, 'Pclass');
+    createChart('pclassSurvChart', 'bar', pclassData.labels, pclassData.rates, 'Survival Rate by Class (%)', '#3498db');
 
-    // Pclass Distribution
-    const pclassCounts = [1, 2, 3].map(p => mergedData.filter(d => d.Pclass === p).length);
-    createChart('pclassChart', 'bar', ['1st Class', '2nd Class', '3rd Class'], pclassCounts, 'Passenger Class');
+    // 3. Survival by Embarked
+    const embData = calculateRate(trainOnly, 'Embarked');
+    createChart('embarkedSurvChart', 'bar', embData.labels, embData.rates, 'Survival Rate by Port (%)', '#2ecc71');
 
-    // Age Histogram (simplified)
+    // 4. Age Distribution
     const ages = mergedData.map(d => d.Age).filter(a => a != null);
-    const bins = [0, 18, 35, 60, 100];
-    const ageCounts = bins.slice(0, -1).map((b, i) => ages.filter(a => a >= b && a < bins[i+1]).length);
-    createChart('ageHist', 'bar', ['0-17', '18-34', '35-59', '60+'], ageCounts, 'Age Groups');
+    const ageBins = ['0-18', '19-35', '36-60', '60+'];
+    const ageCounts = [
+        ages.filter(a => a <= 18).length,
+        ages.filter(a => a > 18 && a <= 35).length,
+        ages.filter(a => a > 35 && a <= 60).length,
+        ages.filter(a => a > 60).length
+    ];
+    createChart('ageHist', 'pie', ageBins, ageCounts, 'Age Distribution (All Data)', ['#ff9f43','#54a0ff','#5f27cd','#48dbfb']);
 }
 
-function createChart(canvasId, type, labels, data, label) {
-    if (charts[canvasId]) charts[canvasId].destroy();
-    const ctx = document.getElementById(canvasId).getContext('2d');
-    charts[canvasId] = new Chart(ctx, {
+// Helper: Calculates % of Survived=1 for each category in a column
+function calculateRate(data, column) {
+    const categories = [...new Set(data.map(d => d[column]))].filter(c => c !== null);
+    const labels = [];
+    const rates = [];
+
+    categories.forEach(cat => {
+        const group = data.filter(d => d[column] === cat);
+        const survivors = group.filter(d => d.Survived === 1).length;
+        const rate = (survivors / group.length) * 100;
+        labels.push(cat);
+        rates.push(rate.toFixed(1));
+    });
+
+    return { labels, rates };
+}
+
+function createChart(id, type, labels, data, title, color) {
+    if (charts[id]) charts[id].destroy();
+    const ctx = document.getElementById(id).getContext('2d');
+    charts[id] = new Chart(ctx, {
         type: type,
         data: {
             labels: labels,
-            datasets: [{ label: label, data: data, backgroundColor: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f'] }]
+            datasets: [{ label: title, data: data, backgroundColor: color }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            scales: type === 'bar' ? { y: { beginAtZero: true, max: 100 } } : {}
+        }
     });
 }
 
 function exportCSV() {
     const csv = Papa.unparse(mergedData);
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'merged_titanic.csv'; a.click();
-}
-
-function exportJSON() {
-    const summary = { total: mergedData.length, timestamp: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(summary)], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'summary.json'; a.click();
 }
