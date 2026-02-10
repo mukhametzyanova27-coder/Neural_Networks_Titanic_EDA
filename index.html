@@ -2,56 +2,406 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>NNDL 2025 - Titanic Binary Classifier</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Titanic Binary Classifier - TensorFlow.js</title>
+    
+    <!-- TensorFlow.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <!-- TensorFlow.js Vis CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@latest"></script>
+    
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f8f9fa; }
-        section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .controls { margin: 15px 0; display: flex; gap: 10px; align-items: center; }
-        button { padding: 10px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
-        button:disabled { background: #6c757d; }
-        table { border-collapse: collapse; width: 100%; font-size: 0.8em; margin-top: 10px; }
-        th, td { border: 1px solid #dee2e6; padding: 6px; text-align: left; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        #thresholdSlider { width: 300px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .section {
+            padding: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .section:last-child {
+            border-bottom: none;
+        }
+        
+        .section h2 {
+            color: #2a5298;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section h2::before {
+            content: '▶';
+            margin-right: 10px;
+            font-size: 0.8em;
+        }
+        
+        .file-input-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .file-input-container {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .file-input-container label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #2a5298;
+            border-radius: 6px;
+            background: #f5f7fa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        input[type="file"]:hover {
+            background: #e8ecf1;
+            border-color: #1e3c72;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1em;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .checkbox-group {
+            margin: 20px 0;
+        }
+        
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        
+        .output-box {
+            background: #f5f7fa;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .output-box pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+        
+        table th, table td {
+            border: 1px solid #d0d7de;
+            padding: 10px;
+            text-align: left;
+        }
+        
+        table th {
+            background: #2a5298;
+            color: white;
+            font-weight: 600;
+        }
+        
+        table tr:nth-child(even) {
+            background: #f5f7fa;
+        }
+        
+        .slider-container {
+            margin: 20px 0;
+        }
+        
+        .slider-container label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #d0d7de;
+            outline: none;
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            display: inline-block;
+            background: #2a5298;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .deployment-note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .deployment-note h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .deployment-note ol {
+            margin-left: 20px;
+            color: #856404;
+        }
+        
+        .deployment-note li {
+            margin: 8px 0;
+        }
+        
+        .status-message {
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .file-input-group {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+                margin-right: 0;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Homework 2: Titanic Shallow NN with Sigmoid Gate</h1>
-
-    <section id="data-section">
-        <h2>1. Data Inspection</h2>
-        <input type="file" id="trainFile" accept=".csv"> Train CSV
-        <input type="file" id="testFile" accept=".csv"> Test CSV
-        <div class="controls">
-            <button id="loadBtn">Inspect Data</button>
+    <div class="container">
+        <header>
+            <h1>🚢 Titanic Survival Classifier</h1>
+            <p>Binary Classification with TensorFlow.js | Runs Entirely in Your Browser</p>
+        </header>
+        
+        <!-- 1. DATA LOAD SECTION -->
+        <div class="section" id="data-section">
+            <h2>Data Load</h2>
+            <div class="file-input-group">
+                <div class="file-input-container">
+                    <label for="trainFile">Training Data (train.csv)</label>
+                    <input type="file" id="trainFile" accept=".csv">
+                </div>
+                <div class="file-input-container">
+                    <label for="testFile">Test Data (test.csv)</label>
+                    <input type="file" id="testFile" accept=".csv">
+                </div>
+            </div>
+            <button id="loadDataBtn">Load & Inspect Data</button>
+            <div id="dataStatus"></div>
+            <div id="dataPreview"></div>
         </div>
-        <div id="dataPreview"></div>
-    </section>
-
-    <section id="train-section">
-        <h2>2. Training</h2>
-        <div class="controls">
+        
+        <!-- 2. PREPROCESSING SECTION -->
+        <div class="section" id="preprocessing-section">
+            <h2>Preprocessing</h2>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="featureFamilySize" checked>
+                    <span>Create FamilySize feature (SibSp + Parch + 1)</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="featureIsAlone" checked>
+                    <span>Create IsAlone feature (FamilySize == 1)</span>
+                </label>
+            </div>
+            <button id="preprocessBtn" disabled>Preprocess Data</button>
+            <div id="preprocessStatus"></div>
+            <div id="preprocessOutput" class="output-box" style="display:none;"></div>
+        </div>
+        
+        <!-- 3. MODEL SECTION -->
+        <div class="section" id="model-section">
+            <h2>Model Architecture</h2>
+            <p style="margin-bottom: 15px;">Sequential Neural Network: Dense(16, relu) → Dense(1, sigmoid)</p>
+            <button id="buildModelBtn" disabled>Build Model</button>
+            <div id="modelStatus"></div>
+            <div id="modelSummary" class="output-box" style="display:none;"></div>
+        </div>
+        
+        <!-- 4. TRAINING SECTION -->
+        <div class="section" id="training-section">
+            <h2>Training</h2>
+            <p style="margin-bottom: 15px;">80/20 stratified split | 50 epochs | Batch size 32 | Early stopping (patience=5)</p>
             <button id="trainBtn" disabled>Train Model</button>
+            <div id="trainingStatus"></div>
+            <div id="trainingCharts"></div>
         </div>
-        <div id="trainProgress"></div>
-    </section>
-
-    <section id="eval-section">
-        <h2>3. Evaluation Metrics</h2>
-        <p>Classification Threshold: <span id="thresholdLabel">0.50</span></p>
-        <input type="range" id="thresholdSlider" min="0" max="1" step="0.01" value="0.5">
-        <div id="importanceChart"></div>
-        <div id="statsOutput"></div>
-    </section>
-
-    <section id="predict-section">
-        <h2>4. Prediction & Export</h2>
-        <button id="predictBtn" disabled>Predict on Test Data</button>
-        <p id="predictStatus"></p>
-    </section>
-
+        
+        <!-- 5. METRICS SECTION -->
+        <div class="section" id="metrics-section">
+            <h2>Evaluation Metrics</h2>
+            <button id="evaluateBtn" disabled>Compute ROC-AUC</button>
+            <div id="metricsStatus"></div>
+            <div class="slider-container">
+                <label>
+                    Classification Threshold: 
+                    <span class="slider-value" id="thresholdValue">0.50</span>
+                </label>
+                <input type="range" id="thresholdSlider" min="0" max="1" step="0.01" value="0.5" disabled>
+            </div>
+            <div id="metricsOutput"></div>
+            <div id="rocChart"></div>
+        </div>
+        
+        <!-- 6. PREDICTION SECTION -->
+        <div class="section" id="prediction-section">
+            <h2>Inference & Prediction</h2>
+            <button id="predictBtn" disabled>Predict Test Set</button>
+            <div id="predictionStatus"></div>
+            <div id="predictionPreview"></div>
+        </div>
+        
+        <!-- 7. EXPORT SECTION -->
+        <div class="section" id="export-section">
+            <h2>Export Results</h2>
+            <button id="exportSubmissionBtn" disabled>Download submission.csv</button>
+            <button id="exportProbabilitiesBtn" disabled>Download probabilities.csv</button>
+            <button id="exportModelBtn" disabled>Download Model</button>
+            <div id="exportStatus"></div>
+        </div>
+        
+        <!-- 8. DEPLOYMENT NOTES -->
+        <div class="section">
+            <h2>GitHub Pages Deployment</h2>
+            <div class="deployment-note">
+                <h3>📋 Deployment Instructions</h3>
+                <ol>
+                    <li>Create a public GitHub repository</li>
+                    <li>Commit both <code>index.html</code> and <code>app.js</code> files to the repository</li>
+                    <li>Go to repository Settings → Pages</li>
+                    <li>Select Source: <strong>Deploy from a branch</strong></li>
+                    <li>Select Branch: <strong>main</strong> and folder: <strong>/ (root)</strong></li>
+                    <li>Click Save and wait a few minutes for deployment</li>
+                    <li>Access your app at: <code>https://username.github.io/repository-name/</code></li>
+                    <li>Test the URL to ensure the app loads correctly</li>
+                </ol>
+                <p style="margin-top: 15px;"><strong>Note:</strong> Upload train.csv and test.csv from your local machine when using the deployed app.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Link to JavaScript file -->
     <script src="app.js"></script>
 </body>
 </html>
