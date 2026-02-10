@@ -34,13 +34,27 @@ let rocData = null;
 // UTILITY FUNCTIONS
 // ============================================================================
 
+// Improved CSV parser that handles quotes and commas inside values
 function parseCSV(text) {
     const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
+    if (lines.length < 2) {
+        throw new Error('CSV file is empty or has only headers');
+    }
+    
+    // Parse header line
+    const headers = parseCSVLine(lines[0]);
     const data = [];
     
+    // Parse data lines
     for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
+        if (lines[i].trim() === '') continue; // Skip empty lines
+        
+        const values = parseCSVLine(lines[i]);
+        if (values.length !== headers.length) {
+            console.warn(`Line ${i + 1} has ${values.length} values but expected ${headers.length}. Skipping.`);
+            continue;
+        }
+        
         const row = {};
         headers.forEach((header, index) => {
             row[header] = values[index];
@@ -48,7 +62,43 @@ function parseCSV(text) {
         data.push(row);
     }
     
+    if (data.length === 0) {
+        throw new Error('No valid data rows found in CSV');
+    }
+    
+    console.log(`Parsed CSV: ${data.length} rows, ${headers.length} columns`);
+    console.log('Headers:', headers);
+    
     return { headers, data };
+}
+
+// Parse a single CSV line handling quotes and escaped commas
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    
+    result.push(current.trim());
+    return result;
 }
 
 function calculateMissingPercentage(data, column) {
@@ -58,19 +108,28 @@ function calculateMissingPercentage(data, column) {
 
 function getMedian(values) {
     const sorted = values.filter(v => !isNaN(v) && v !== null).sort((a, b) => a - b);
+    if (sorted.length === 0) return 0;
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 function getMode(values) {
     const freq = {};
-    values.forEach(v => freq[v] = (freq[v] || 0) + 1);
+    values.forEach(v => {
+        if (v && v !== '') {
+            freq[v] = (freq[v] || 0) + 1;
+        }
+    });
+    
+    if (Object.keys(freq).length === 0) return '';
     return Object.keys(freq).reduce((a, b) => freq[a] > freq[b] ? a : b);
 }
 
 function showStatus(elementId, message, type = 'info') {
     const element = document.getElementById(elementId);
-    element.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
+    if (element) {
+        element.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
+    }
 }
 
 // ============================================================================
@@ -82,37 +141,60 @@ async function loadData() {
         const trainFile = document.getElementById('trainFile').files[0];
         const testFile = document.getElementById('testFile').files[0];
         
+        console.log('Load button clicked');
+        console.log('Train file:', trainFile);
+        console.log('Test file:', testFile);
+        
         if (!trainFile || !testFile) {
-            alert('Please select both train.csv and test.csv files');
+            alert('Пожалуйста, выберите оба файла: train.csv и test.csv');
+            showStatus('dataStatus', 'Ошибка: файлы не выбраны', 'error');
             return;
         }
         
-        showStatus('dataStatus', 'Loading data files...', 'info');
+        showStatus('dataStatus', 'Загрузка файлов данных...', 'info');
         
         // Read files
+        console.log('Reading train file...');
         const trainText = await trainFile.text();
+        console.log('Train file read, length:', trainText.length);
+        
+        console.log('Reading test file...');
         const testText = await testFile.text();
+        console.log('Test file read, length:', testText.length);
         
         // Parse CSV
+        console.log('Parsing train CSV...');
         trainData = parseCSV(trainText);
+        console.log('Train data parsed:', trainData.data.length, 'rows');
+        
+        console.log('Parsing test CSV...');
         testData = parseCSV(testText);
+        console.log('Test data parsed:', testData.data.length, 'rows');
         
         // Validate schema
         if (!trainData.headers.includes(DATA_SCHEMA.targetColumn)) {
-            throw new Error(`Target column '${DATA_SCHEMA.targetColumn}' not found in training data`);
+            throw new Error(`Столбец '${DATA_SCHEMA.targetColumn}' не найден в обучающих данных`);
+        }
+        
+        // Check for required feature columns
+        const missingFeatures = DATA_SCHEMA.featureColumns.filter(col => !trainData.headers.includes(col));
+        if (missingFeatures.length > 0) {
+            console.warn('Missing features:', missingFeatures);
         }
         
         // Display preview
+        console.log('Displaying preview...');
         displayDataPreview();
         
         // Enable preprocessing
         document.getElementById('preprocessBtn').disabled = false;
         
-        showStatus('dataStatus', `✓ Loaded ${trainData.data.length} training samples, ${testData.data.length} test samples`, 'success');
+        showStatus('dataStatus', `✓ Загружено ${trainData.data.length} обучающих примеров, ${testData.data.length} тестовых примеров`, 'success');
         
     } catch (error) {
-        showStatus('dataStatus', `Error loading data: ${error.message}`, 'error');
-        console.error(error);
+        showStatus('dataStatus', `Ошибка загрузки данных: ${error.message}`, 'error');
+        console.error('Error in loadData:', error);
+        alert(`Ошибка: ${error.message}\n\nПроверьте консоль браузера (F12) для подробностей`);
     }
 }
 
@@ -120,23 +202,25 @@ function displayDataPreview() {
     const previewDiv = document.getElementById('dataPreview');
     
     // Data shape
-    let html = '<h3>Data Shape</h3>';
-    html += `<p>Training: ${trainData.data.length} rows × ${trainData.headers.length} columns</p>`;
-    html += `<p>Test: ${testData.data.length} rows × ${testData.headers.length} columns</p>`;
+    let html = '<h3>Размерность данных</h3>';
+    html += `<p>Обучающая выборка: ${trainData.data.length} строк × ${trainData.headers.length} столбцов</p>`;
+    html += `<p>Тестовая выборка: ${testData.data.length} строк × ${testData.headers.length} столбцов</p>`;
     
     // Missing values
-    html += '<h3>Missing Values (%)</h3>';
-    html += '<table><tr><th>Column</th><th>Train</th><th>Test</th></tr>';
+    html += '<h3>Пропущенные значения (%)</h3>';
+    html += '<table><tr><th>Столбец</th><th>Train</th><th>Test</th></tr>';
     DATA_SCHEMA.featureColumns.forEach(col => {
-        const trainMissing = calculateMissingPercentage(trainData.data, col);
-        const testMissing = calculateMissingPercentage(testData.data, col);
-        html += `<tr><td>${col}</td><td>${trainMissing}%</td><td>${testMissing}%</td></tr>`;
+        if (trainData.headers.includes(col)) {
+            const trainMissing = calculateMissingPercentage(trainData.data, col);
+            const testMissing = calculateMissingPercentage(testData.data, col);
+            html += `<tr><td>${col}</td><td>${trainMissing}%</td><td>${testMissing}%</td></tr>`;
+        }
     });
     html += '</table>';
     
     // Preview table
-    html += '<h3>Training Data Preview (first 5 rows)</h3>';
-    html += '<table><tr>';
+    html += '<h3>Предпросмотр обучающих данных (первые 5 строк)</h3>';
+    html += '<div style="overflow-x: auto;"><table><tr>';
     trainData.headers.forEach(h => html += `<th>${h}</th>`);
     html += '</tr>';
     trainData.data.slice(0, 5).forEach(row => {
@@ -144,12 +228,16 @@ function displayDataPreview() {
         trainData.headers.forEach(h => html += `<td>${row[h] || 'NaN'}</td>`);
         html += '</tr>';
     });
-    html += '</table>';
+    html += '</table></div>';
     
     previewDiv.innerHTML = html;
     
     // Visualize survival by Sex and Pclass
-    visualizeSurvival();
+    try {
+        visualizeSurvival();
+    } catch (error) {
+        console.error('Error in visualizeSurvival:', error);
+    }
 }
 
 async function visualizeSurvival() {
@@ -159,8 +247,13 @@ async function visualizeSurvival() {
         const sex = row['Sex'];
         const survived = parseInt(row[DATA_SCHEMA.targetColumn]);
         if (sex && !isNaN(survived)) {
-            if (survived === 1) sexCounts[sex].survived++;
-            else sexCounts[sex].died++;
+            if (survived === 1) {
+                if (!sexCounts[sex]) sexCounts[sex] = { survived: 0, died: 0 };
+                sexCounts[sex].survived++;
+            } else {
+                if (!sexCounts[sex]) sexCounts[sex] = { survived: 0, died: 0 };
+                sexCounts[sex].died++;
+            }
         }
     });
     
@@ -183,6 +276,7 @@ async function visualizeSurvival() {
         const pclass = row['Pclass'];
         const survived = parseInt(row[DATA_SCHEMA.targetColumn]);
         if (pclass && !isNaN(survived)) {
+            if (!pclassCounts[pclass]) pclassCounts[pclass] = { survived: 0, died: 0 };
             if (survived === 1) pclassCounts[pclass].survived++;
             else pclassCounts[pclass].died++;
         }
@@ -210,7 +304,7 @@ async function visualizeSurvival() {
 
 function preprocessData() {
     try {
-        showStatus('preprocessStatus', 'Preprocessing data...', 'info');
+        showStatus('preprocessStatus', 'Предобработка данных...', 'info');
         
         const useFamilySize = document.getElementById('featureFamilySize').checked;
         const useIsAlone = document.getElementById('featureIsAlone').checked;
@@ -229,10 +323,10 @@ function preprocessData() {
         // Enable model building
         document.getElementById('buildModelBtn').disabled = false;
         
-        showStatus('preprocessStatus', '✓ Preprocessing completed successfully', 'success');
+        showStatus('preprocessStatus', '✓ Предобработка завершена успешно', 'success');
         
     } catch (error) {
-        showStatus('preprocessStatus', `Error preprocessing data: ${error.message}`, 'error');
+        showStatus('preprocessStatus', `Ошибка предобработки: ${error.message}`, 'error');
         console.error(error);
     }
 }
@@ -292,15 +386,15 @@ function encodeFeatures(data, isTrain, useFamilySize, useIsAlone) {
         
         // Standardized Age
         const age = parseFloat(row['Age']);
-        features.push((age - ageMean) / ageStd);
+        features.push((age - ageMean) / (ageStd || 1));
         
         // SibSp and Parch (raw)
-        features.push(parseFloat(row['SibSp']));
-        features.push(parseFloat(row['Parch']));
+        features.push(parseFloat(row['SibSp']) || 0);
+        features.push(parseFloat(row['Parch']) || 0);
         
         // Standardized Fare
         const fare = parseFloat(row['Fare']);
-        features.push((fare - fareMean) / fareStd);
+        features.push((fare - fareMean) / (fareStd || 1));
         
         // One-hot encode Embarked (C, Q, S)
         features.push(row['Embarked'] === 'C' ? 1 : 0);
@@ -309,13 +403,13 @@ function encodeFeatures(data, isTrain, useFamilySize, useIsAlone) {
         
         // Optional: FamilySize
         if (useFamilySize) {
-            const familySize = parseFloat(row['SibSp']) + parseFloat(row['Parch']) + 1;
+            const familySize = (parseFloat(row['SibSp']) || 0) + (parseFloat(row['Parch']) || 0) + 1;
             features.push(familySize);
         }
         
         // Optional: IsAlone
         if (useIsAlone) {
-            const familySize = parseFloat(row['SibSp']) + parseFloat(row['Parch']) + 1;
+            const familySize = (parseFloat(row['SibSp']) || 0) + (parseFloat(row['Parch']) || 0) + 1;
             features.push(familySize === 1 ? 1 : 0);
         }
         
@@ -341,20 +435,20 @@ function displayPreprocessingSummary(useFamilySize, useIsAlone) {
     outputDiv.style.display = 'block';
     
     let html = '<pre>';
-    html += `Training samples: ${preprocessedTrain.features.length}\n`;
-    html += `Test samples: ${preprocessedTest.features.length}\n`;
-    html += `Number of features: ${preprocessedTrain.numFeatures}\n\n`;
+    html += `Обучающих примеров: ${preprocessedTrain.features.length}\n`;
+    html += `Тестовых примеров: ${preprocessedTest.features.length}\n`;
+    html += `Количество признаков: ${preprocessedTrain.numFeatures}\n\n`;
     
     html += 'Feature Engineering:\n';
     html += `- One-hot encoding: Pclass (3), Sex (2), Embarked (3)\n`;
-    html += `- Standardized: Age, Fare\n`;
-    html += `- Raw features: SibSp, Parch\n`;
-    if (useFamilySize) html += `- Created: FamilySize = SibSp + Parch + 1\n`;
-    if (useIsAlone) html += `- Created: IsAlone = (FamilySize == 1)\n`;
+    html += `- Стандартизированные: Age, Fare\n`;
+    html += `- Исходные признаки: SibSp, Parch\n`;
+    if (useFamilySize) html += `- Создан: FamilySize = SibSp + Parch + 1\n`;
+    if (useIsAlone) html += `- Создан: IsAlone = (FamilySize == 1)\n`;
     
     html += '\n';
-    html += `Feature vector shape: [${preprocessedTrain.features.length}, ${preprocessedTrain.numFeatures}]\n`;
-    html += `Target vector shape: [${preprocessedTrain.targets.length}]\n`;
+    html += `Размерность вектора признаков: [${preprocessedTrain.features.length}, ${preprocessedTrain.numFeatures}]\n`;
+    html += `Размерность вектора целей: [${preprocessedTrain.targets.length}]\n`;
     html += '</pre>';
     
     outputDiv.innerHTML = html;
@@ -366,7 +460,7 @@ function displayPreprocessingSummary(useFamilySize, useIsAlone) {
 
 function buildModel() {
     try {
-        showStatus('modelStatus', 'Building model...', 'info');
+        showStatus('modelStatus', 'Построение модели...', 'info');
         
         const inputShape = [preprocessedTrain.numFeatures];
         
@@ -389,10 +483,10 @@ function buildModel() {
         // Enable training
         document.getElementById('trainBtn').disabled = false;
         
-        showStatus('modelStatus', '✓ Model built successfully', 'success');
+        showStatus('modelStatus', '✓ Модель построена успешно', 'success');
         
     } catch (error) {
-        showStatus('modelStatus', `Error building model: ${error.message}`, 'error');
+        showStatus('modelStatus', `Ошибка построения модели: ${error.message}`, 'error');
         console.error(error);
     }
 }
@@ -402,7 +496,7 @@ function displayModelSummary() {
     summaryDiv.style.display = 'block';
     
     let html = '<pre>';
-    html += 'Model Architecture:\n';
+    html += 'Архитектура модели:\n';
     html += '================================================================\n';
     html += `Layer (type)                 Output Shape              Param #\n`;
     html += '================================================================\n';
@@ -416,11 +510,11 @@ function displayModelSummary() {
     });
     
     html += '================================================================\n';
-    html += `Total params: ${model.countParams()}\n`;
-    html += `Trainable params: ${model.countParams()}\n`;
+    html += `Всего параметров: ${model.countParams()}\n`;
+    html += `Обучаемых параметров: ${model.countParams()}\n`;
     html += '================================================================\n\n';
     
-    html += 'Compilation:\n';
+    html += 'Компиляция:\n';
     html += '- Optimizer: adam\n';
     html += '- Loss: binaryCrossentropy\n';
     html += '- Metrics: accuracy\n';
@@ -435,7 +529,7 @@ function displayModelSummary() {
 
 async function trainModel() {
     try {
-        showStatus('trainingStatus', 'Training model...', 'info');
+        showStatus('trainingStatus', 'Обучение модели...', 'info');
         
         // Stratified split (80/20)
         const { trainX, trainY, valX, valY } = stratifiedSplit(
@@ -489,10 +583,10 @@ async function trainModel() {
         document.getElementById('evaluateBtn').disabled = false;
         document.getElementById('predictBtn').disabled = false;
         
-        showStatus('trainingStatus', `✓ Training completed (${history.epoch.length} epochs)`, 'success');
+        showStatus('trainingStatus', `✓ Обучение завершено (${history.epoch.length} эпох)`, 'success');
         
     } catch (error) {
-        showStatus('trainingStatus', `Error training model: ${error.message}`, 'error');
+        showStatus('trainingStatus', `Ошибка обучения: ${error.message}`, 'error');
         console.error(error);
     }
 }
@@ -543,7 +637,7 @@ function shuffle(array) {
 
 async function evaluateModel() {
     try {
-        showStatus('metricsStatus', 'Computing ROC-AUC...', 'info');
+        showStatus('metricsStatus', 'Вычисление ROC-AUC...', 'info');
         
         const xVal = tf.tensor2d(trainResults.valX);
         const probabilities = model.predict(xVal).dataSync();
@@ -566,10 +660,10 @@ async function evaluateModel() {
         // Enable export
         document.getElementById('exportModelBtn').disabled = false;
         
-        showStatus('metricsStatus', `✓ ROC-AUC computed: ${rocData.auc.toFixed(4)}`, 'success');
+        showStatus('metricsStatus', `✓ ROC-AUC вычислен: ${rocData.auc.toFixed(4)}`, 'success');
         
     } catch (error) {
-        showStatus('metricsStatus', `Error evaluating model: ${error.message}`, 'error');
+        showStatus('metricsStatus', `Ошибка оценки: ${error.message}`, 'error');
         console.error(error);
     }
 }
@@ -645,14 +739,14 @@ function updateMetrics(threshold, trueLabels, probabilities) {
     const accuracy = (tp + tn) / trueLabels.length;
     
     const outputDiv = document.getElementById('metricsOutput');
-    let html = '<h3>Confusion Matrix</h3>';
+    let html = '<h3>Матрица ошибок</h3>';
     html += '<table style="width: auto; margin: 0 auto;">';
-    html += '<tr><th></th><th>Predicted 0</th><th>Predicted 1</th></tr>';
-    html += `<tr><th>Actual 0</th><td>${tn}</td><td>${fp}</td></tr>`;
-    html += `<tr><th>Actual 1</th><td>${fn}</td><td>${tp}</td></tr>`;
+    html += '<tr><th></th><th>Предсказано 0</th><th>Предсказано 1</th></tr>';
+    html += `<tr><th>Истинно 0</th><td>${tn}</td><td>${fp}</td></tr>`;
+    html += `<tr><th>Истинно 1</th><td>${fn}</td><td>${tp}</td></tr>`;
     html += '</table>';
     
-    html += '<h3>Performance Metrics</h3>';
+    html += '<h3>Метрики производительности</h3>';
     html += '<table>';
     html += `<tr><td><strong>Accuracy</strong></td><td>${accuracy.toFixed(4)}</td></tr>`;
     html += `<tr><td><strong>Precision</strong></td><td>${precision.toFixed(4)}</td></tr>`;
@@ -670,7 +764,7 @@ function updateMetrics(threshold, trueLabels, probabilities) {
 
 async function predictTestSet() {
     try {
-        showStatus('predictionStatus', 'Making predictions on test set...', 'info');
+        showStatus('predictionStatus', 'Создание предсказаний на тестовой выборке...', 'info');
         
         const xTest = tf.tensor2d(preprocessedTest.features);
         const probabilities = model.predict(xTest).dataSync();
@@ -691,10 +785,10 @@ async function predictTestSet() {
         document.getElementById('exportSubmissionBtn').disabled = false;
         document.getElementById('exportProbabilitiesBtn').disabled = false;
         
-        showStatus('predictionStatus', `✓ Predicted ${predictions.ids.length} test samples`, 'success');
+        showStatus('predictionStatus', `✓ Создано предсказаний: ${predictions.ids.length}`, 'success');
         
     } catch (error) {
-        showStatus('predictionStatus', `Error making predictions: ${error.message}`, 'error');
+        showStatus('predictionStatus', `Ошибка предсказания: ${error.message}`, 'error');
         console.error(error);
     }
 }
@@ -702,7 +796,7 @@ async function predictTestSet() {
 function displayPredictionPreview() {
     const previewDiv = document.getElementById('predictionPreview');
     
-    let html = '<h3>Prediction Preview (first 10 rows)</h3>';
+    let html = '<h3>Предпросмотр предсказаний (первые 10 строк)</h3>';
     html += '<table>';
     html += '<tr><th>PassengerId</th><th>Probability</th><th>Survived</th></tr>';
     
@@ -729,7 +823,7 @@ function exportSubmission() {
     });
     
     downloadCSV(csv, 'submission.csv');
-    showStatus('exportStatus', '✓ Downloaded submission.csv', 'success');
+    showStatus('exportStatus', '✓ Файл submission.csv загружен', 'success');
 }
 
 function exportProbabilities() {
@@ -739,15 +833,15 @@ function exportProbabilities() {
     });
     
     downloadCSV(csv, 'probabilities.csv');
-    showStatus('exportStatus', '✓ Downloaded probabilities.csv', 'success');
+    showStatus('exportStatus', '✓ Файл probabilities.csv загружен', 'success');
 }
 
 async function exportModel() {
     try {
         await model.save('downloads://titanic-tfjs');
-        showStatus('exportStatus', '✓ Model saved (check Downloads folder)', 'success');
+        showStatus('exportStatus', '✓ Модель сохранена (проверьте папку Загрузки)', 'success');
     } catch (error) {
-        showStatus('exportStatus', `Error saving model: ${error.message}`, 'error');
+        showStatus('exportStatus', `Ошибка сохранения модели: ${error.message}`, 'error');
     }
 }
 
@@ -765,32 +859,36 @@ function downloadCSV(content, filename) {
 // EVENT LISTENERS
 // ============================================================================
 
-document.getElementById('loadDataBtn').addEventListener('click', loadData);
-document.getElementById('preprocessBtn').addEventListener('click', preprocessData);
-document.getElementById('buildModelBtn').addEventListener('click', buildModel);
-document.getElementById('trainBtn').addEventListener('click', trainModel);
-document.getElementById('evaluateBtn').addEventListener('click', evaluateModel);
-document.getElementById('predictBtn').addEventListener('click', predictTestSet);
-document.getElementById('exportSubmissionBtn').addEventListener('click', exportSubmission);
-document.getElementById('exportProbabilitiesBtn').addEventListener('click', exportProbabilities);
-document.getElementById('exportModelBtn').addEventListener('click', exportModel);
-
-// Threshold slider listener
-document.getElementById('thresholdSlider').addEventListener('input', (e) => {
-    const threshold = parseFloat(e.target.value);
-    document.getElementById('thresholdValue').textContent = threshold.toFixed(2);
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing event listeners...');
     
-    if (trainResults && rocData) {
-        const xVal = tf.tensor2d(trainResults.valX);
-        const probabilities = model.predict(xVal).dataSync();
-        xVal.dispose();
-        updateMetrics(threshold, trainResults.valY, Array.from(probabilities));
-    }
+    document.getElementById('loadDataBtn').addEventListener('click', loadData);
+    document.getElementById('preprocessBtn').addEventListener('click', preprocessData);
+    document.getElementById('buildModelBtn').addEventListener('click', buildModel);
+    document.getElementById('trainBtn').addEventListener('click', trainModel);
+    document.getElementById('evaluateBtn').addEventListener('click', evaluateModel);
+    document.getElementById('predictBtn').addEventListener('click', predictTestSet);
+    document.getElementById('exportSubmissionBtn').addEventListener('click', exportSubmission);
+    document.getElementById('exportProbabilitiesBtn').addEventListener('click', exportProbabilities);
+    document.getElementById('exportModelBtn').addEventListener('click', exportModel);
     
-    if (predictions) {
-        predictions.labels = predictions.probabilities.map(p => p >= threshold ? 1 : 0);
-        displayPredictionPreview();
-    }
+    // Threshold slider listener
+    document.getElementById('thresholdSlider').addEventListener('input', (e) => {
+        const threshold = parseFloat(e.target.value);
+        document.getElementById('thresholdValue').textContent = threshold.toFixed(2);
+        
+        if (trainResults && rocData) {
+            const xVal = tf.tensor2d(trainResults.valX);
+            const probabilities = model.predict(xVal).dataSync();
+            xVal.dispose();
+            updateMetrics(threshold, trainResults.valY, Array.from(probabilities));
+        }
+        
+        if (predictions) {
+            predictions.labels = predictions.probabilities.map(p => p >= threshold ? 1 : 0);
+            displayPredictionPreview();
+        }
+    });
+    
+    console.log('Titanic Binary Classifier initialized. Ready to load data.');
 });
-
-console.log('Titanic Binary Classifier initialized. Ready to load data.');
