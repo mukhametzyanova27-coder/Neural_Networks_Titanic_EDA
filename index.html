@@ -2,72 +2,54 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Titanic TF.js Classifier (Gate Method)</title>
+    <title>NNDL 2025 - Titanic Binary Classifier</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@latest"></script>
-    <!-- Fix for CSV parsing: Using PapaParse instead of simple split -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 20px; line-height: 1.6; background: #f4f4f9; }
-        section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
-        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
-        button:disabled { background: #ccc; }
-        input[type="file"] { margin-bottom: 10px; }
-        #preview { overflow-x: auto; }
-        table { border-collapse: collapse; width: 100%; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .metric-box { display: inline-block; margin-right: 20px; font-weight: bold; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f8f9fa; }
+        section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .controls { margin: 15px 0; display: flex; gap: 10px; align-items: center; }
+        button { padding: 10px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:disabled { background: #6c757d; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.8em; margin-top: 10px; }
+        th, td { border: 1px solid #dee2e6; padding: 6px; text-align: left; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        #thresholdSlider { width: 300px; }
     </style>
 </head>
 <body>
+    <h1>Homework 2: Titanic Shallow NN with Sigmoid Gate</h1>
 
-    <h1>Titanic Binary Classifier (Neural Network)</h1>
-
-    <section id="data-load">
-        <h2>1. Load Data</h2>
-        <p>Upload <code>train.csv</code> and <code>test.csv</code></p>
-        <input type="file" id="trainFile" accept=".csv">
-        <input type="file" id="testFile" accept=".csv">
+    <section id="data-section">
+        <h2>1. Data Inspection</h2>
+        <input type="file" id="trainFile" accept=".csv"> Train CSV
+        <input type="file" id="testFile" accept=".csv"> Test CSV
         <div class="controls">
-            <button id="btnLoad">Load & Inspect</button>
+            <button id="loadBtn">Inspect Data</button>
         </div>
-        <div id="preview"></div>
+        <div id="dataPreview"></div>
     </section>
 
-    <section id="model-area">
-        <h2>2. Model & Training</h2>
+    <section id="train-section">
+        <h2>2. Training</h2>
         <div class="controls">
-            <button id="btnTrain" disabled>Train Model</button>
+            <button id="trainBtn" disabled>Train Model</button>
         </div>
-        <div id="trainStatus"></div>
+        <div id="trainProgress"></div>
     </section>
 
-    <section id="metrics-area">
-        <h2>3. Evaluation & Feature Importance</h2>
-        <div>
-            <label>Classification Threshold: <span id="thresholdVal">0.50</span></label>
-            <input type="range" id="thresholdSlider" min="0" max="1" step="0.01" value="0.5">
-        </div>
-        <div id="featureImportance"></div>
-        <div id="confusionMatrix"></div>
-        <div id="stats"></div>
+    <section id="eval-section">
+        <h2>3. Evaluation Metrics</h2>
+        <p>Classification Threshold: <span id="thresholdLabel">0.50</span></p>
+        <input type="range" id="thresholdSlider" min="0" max="1" step="0.01" value="0.5">
+        <div id="importanceChart"></div>
+        <div id="statsOutput"></div>
     </section>
 
-    <section id="export-area">
+    <section id="predict-section">
         <h2>4. Prediction & Export</h2>
-        <div class="controls">
-            <button id="btnPredict" disabled>Predict & Download</button>
-        </div>
-        <div style="margin-top: 10px;">
-            <strong>Deployment Notes:</strong>
-            <ol>
-                <li>Create public GitHub repo.</li>
-                <li>Commit <code>index.html</code> and <code>app.js</code>.</li>
-                <li>Enable GitHub Pages in Settings -> Pages.</li>
-            </ol>
-        </div>
+        <button id="predictBtn" disabled>Predict on Test Data</button>
+        <p id="predictStatus"></p>
     </section>
 
     <script src="app.js"></script>
