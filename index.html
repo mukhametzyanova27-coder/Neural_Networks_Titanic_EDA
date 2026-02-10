@@ -3,52 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Titanic EDA Tool - Advanced</title>
+    <title>Titanic TF.js Classifier (Gate Method)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis@latest"></script>
+    <!-- Fix for CSV parsing: Using PapaParse instead of simple split -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; padding: 20px; max-width: 1200px; margin: 0 auto; background: #f0f2f5; }
-        section { background: white; padding: 25px; margin-bottom: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h2 { border-bottom: 3px solid #007bff; padding-bottom: 10px; color: #333; }
-        .controls { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
-        .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; }
-        .chart-container { background: #fff; padding: 15px; border: 1px solid #eee; border-radius: 8px; height: 350px; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0056b3; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background: #f8f9fa; }
+        body { font-family: sans-serif; margin: 20px; line-height: 1.6; background: #f4f4f9; }
+        section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:disabled { background: #ccc; }
+        input[type="file"] { margin-bottom: 10px; }
+        #preview { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .metric-box { display: inline-block; margin-right: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>Titanic Survival Analysis Dashboard</h1>
-    </header>
+    <h1>Titanic Binary Classifier (Neural Network)</h1>
 
     <section id="data-load">
-        <h2>1. Upload Data</h2>
+        <h2>1. Load Data</h2>
+        <p>Upload <code>train.csv</code> and <code>test.csv</code></p>
+        <input type="file" id="trainFile" accept=".csv">
+        <input type="file" id="testFile" accept=".csv">
         <div class="controls">
-            <div><label>Train CSV (with Survived):</label><br><input type="file" id="train-file" accept=".csv"></div>
-            <div><label>Test CSV:</label><br><input type="file" id="test-file" accept=".csv"></div>
-            <button id="run-eda-btn">Analyze Data</button>
+            <button id="btnLoad">Load & Inspect</button>
         </div>
+        <div id="preview"></div>
     </section>
 
-    <section id="viz-section" style="display:none;">
-        <h2>2. Survival Rate Analysis (%)</h2>
-        <p>These charts show the <b>percentage of people who survived</b> in each category (using train data).</p>
-        <div class="chart-grid">
-            <div class="chart-container"><canvas id="sexSurvChart"></canvas></div>
-            <div class="chart-container"><canvas id="pclassSurvChart"></canvas></div>
-            <div class="chart-container"><canvas id="embarkedSurvChart"></canvas></div>
-            <div class="chart-container"><canvas id="ageHist"></canvas></div>
+    <section id="model-area">
+        <h2>2. Model & Training</h2>
+        <div class="controls">
+            <button id="btnTrain" disabled>Train Model</button>
         </div>
+        <div id="trainStatus"></div>
     </section>
 
-    <section id="export-section" style="display:none;">
-        <h2>3. Actions</h2>
-        <button id="export-csv">Download Merged Data</button>
+    <section id="metrics-area">
+        <h2>3. Evaluation & Feature Importance</h2>
+        <div>
+            <label>Classification Threshold: <span id="thresholdVal">0.50</span></label>
+            <input type="range" id="thresholdSlider" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div id="featureImportance"></div>
+        <div id="confusionMatrix"></div>
+        <div id="stats"></div>
+    </section>
+
+    <section id="export-area">
+        <h2>4. Prediction & Export</h2>
+        <div class="controls">
+            <button id="btnPredict" disabled>Predict & Download</button>
+        </div>
+        <div style="margin-top: 10px;">
+            <strong>Deployment Notes:</strong>
+            <ol>
+                <li>Create public GitHub repo.</li>
+                <li>Commit <code>index.html</code> and <code>app.js</code>.</li>
+                <li>Enable GitHub Pages in Settings -> Pages.</li>
+            </ol>
+        </div>
     </section>
 
     <script src="app.js"></script>
