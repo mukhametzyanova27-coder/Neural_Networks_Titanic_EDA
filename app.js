@@ -194,51 +194,71 @@ function visualizeSurvivalDistribution(data) {
     // Survival by Sex
     const sexData = { male: { survived: 0, died: 0 }, female: { survived: 0, died: 0 } };
     data.forEach(row => {
-        const sex = row.Sex;
+        const sex = (row.Sex || '').toLowerCase().trim();
         const survived = parseInt(row.Survived);
-        if (sex && (sex === 'male' || sex === 'female')) {
-            if (survived === 1) sexData[sex].survived++;
-            else sexData[sex].died++;
+        if (sex === 'male') {
+            if (survived === 1) sexData.male.survived++;
+            else sexData.male.died++;
+        } else if (sex === 'female') {
+            if (survived === 1) sexData.female.survived++;
+            else sexData.female.died++;
         }
     });
     
+    // Format data for grouped bar chart (Sex)
     const sexChartData = [
-        { index: 0, value: sexData.male.survived, label: 'Male Survived' },
-        { index: 1, value: sexData.male.died, label: 'Male Died' },
-        { index: 2, value: sexData.female.survived, label: 'Female Survived' },
-        { index: 3, value: sexData.female.died, label: 'Female Died' },
+        { index: 0, value: sexData.male.died, label: 'Male Died' },
+        { index: 1, value: sexData.male.survived, label: 'Male Survived' },
+        { index: 2, value: sexData.female.died, label: 'Female Died' },
+        { index: 3, value: sexData.female.survived, label: 'Female Survived' },
     ];
     
     tfvis.render.barchart(
         { name: 'Survival by Sex', tab: 'Data Inspection' },
         sexChartData,
-        { width: 500, height: 300 }
+        { 
+            width: 500, 
+            height: 300,
+            xLabel: 'Category',
+            yLabel: 'Count'
+        }
     );
     
     // Survival by Pclass
-    const pclassData = { 1: { survived: 0, died: 0 }, 2: { survived: 0, died: 0 }, 3: { survived: 0, died: 0 } };
+    const pclassData = { 
+        1: { survived: 0, died: 0 }, 
+        2: { survived: 0, died: 0 }, 
+        3: { survived: 0, died: 0 } 
+    };
+    
     data.forEach(row => {
         const pclass = parseInt(row.Pclass);
         const survived = parseInt(row.Survived);
-        if (pclass && [1, 2, 3].includes(pclass)) {
+        if ([1, 2, 3].includes(pclass)) {
             if (survived === 1) pclassData[pclass].survived++;
             else pclassData[pclass].died++;
         }
     });
     
+    // Format data for grouped bar chart (Pclass)
     const pclassChartData = [
-        { index: 0, value: pclassData[1].survived, label: 'Class 1 Survived' },
-        { index: 1, value: pclassData[1].died, label: 'Class 1 Died' },
-        { index: 2, value: pclassData[2].survived, label: 'Class 2 Survived' },
-        { index: 3, value: pclassData[2].died, label: 'Class 2 Died' },
-        { index: 4, value: pclassData[3].survived, label: 'Class 3 Survived' },
-        { index: 5, value: pclassData[3].died, label: 'Class 3 Died' },
+        { index: 0, value: pclassData[1].died, label: 'Class 1 Died' },
+        { index: 1, value: pclassData[1].survived, label: 'Class 1 Survived' },
+        { index: 2, value: pclassData[2].died, label: 'Class 2 Died' },
+        { index: 3, value: pclassData[2].survived, label: 'Class 2 Survived' },
+        { index: 4, value: pclassData[3].died, label: 'Class 3 Died' },
+        { index: 5, value: pclassData[3].survived, label: 'Class 3 Survived' },
     ];
     
     tfvis.render.barchart(
         { name: 'Survival by Pclass', tab: 'Data Inspection' },
         pclassChartData,
-        { width: 500, height: 300 }
+        { 
+            width: 600, 
+            height: 300,
+            xLabel: 'Category',
+            yLabel: 'Count'
+        }
     );
 }
 
